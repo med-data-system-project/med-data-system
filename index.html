@@ -13,32 +13,36 @@
 
 <body>
     <main class="container">
-        <button onclick="location.href='report.html'">Отримати агрегований звіт</button>
+        <button onclick="location.href='report.html'" style="margin-bottom: 20px;">Отримати агрегований звіт</button>
+        
         <h1>Реєстрація пацієнта</h1>
         
         <form id="patient-form">
-            <label>Ім’я* <input type="text" name="firstName" required /></label>
-            <label>Прізвище* <input type="text" name="lastName" required /></label>
+            <label>Ім’я* <input type="text" name="firstName" required placeholder="Введіть ім'я" /></label>
+            <label>Прізвище* <input type="text" name="lastName" required placeholder="Введіть прізвище" /></label>
             <label>Дата народження* <input type="date" name="birthDate" required /></label>
+            
             <label>Стать*
                 <select name="gender" required>
-                    <option value="">Оберіть</option>
+                    <option value="">Оберіть стать</option>
                     <option value="Чоловіча">Чоловіча</option>
                     <option value="Жіноча">Жіноча</option>
                     <option value="Інше">Інше</option>
                 </select>
             </label>
-            <label>Номер телефону <input type="tel" name="phone" /></label>
-            <label>Зріст (см)* <input type="number" name="height" required /></label>
-            <label>Вага (кг)* <input type="number" name="weight" required /></label>
-            <label>Коментар <textarea name="note"></textarea></label>
+            
+            <label>Номер телефону <input type="tel" name="phone" placeholder="+380..." /></label>
+            <label>Зріст (см)* <input type="number" name="height" required min="30" max="300" /></label>
+            <label>Вага (кг)* <input type="number" name="weight" required min="2" max="500" /></label>
+            <label>Коментар <textarea name="note" placeholder="Додаткова інформація..."></textarea></label>
 
-            <button type="submit">Зберегти</button>
+            <button type="submit">Зберегти дані</button>
         </form>
 
-        <div id="success-section" style="display: none;">
-            <p>Пацієнта збережено успішно.</p>
-            <button id="generate-pdf">Отримати звіт (PDF)</button>
+        <div id="success-section" style="display: none; margin-top: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px; background-color: #f9f9f9;">
+            <p style="color: #27ae60; font-weight: bold;">Пацієнта збережено успішно!</p>
+            <p>Розрахований ІМТ: <strong id="display-bmi"></strong></p>
+            <button id="generate-pdf" style="background-color: #e74c3c;">Завантажити картку (PDF)</button>
         </div>
     </main>
 
@@ -47,17 +51,26 @@
         
         const patientForm = document.getElementById('patient-form');
         const successSection = document.getElementById('success-section');
+        const bmiDisplay = document.getElementById('display-bmi');
         const generatePdfBtn = document.getElementById('generate-pdf');
+        
         let currentPatientData = null;
 
-        // 1. Обробка форми
+        // 1. Обробка форми та розрахунки
         if (patientForm) {
             patientForm.addEventListener('submit', (e) => {
                 e.preventDefault();
                 const formData = new FormData(patientForm);
+                
                 const weight = parseFloat(formData.get('weight'));
-                const height = parseFloat(formData.get('height')) / 100;
-                let bmi = (weight > 0 && height > 0) ? (weight / (height * height)).toFixed(1) : '-';
+                const heightCm = parseFloat(formData.get('height'));
+                const heightM = heightCm / 100;
+
+                // Розрахунок Індексу маси тіла (ІМТ)
+                let bmi = '-';
+                if (weight > 0 && heightM > 0) {
+                    bmi = (weight / (heightM * heightM)).toFixed(1);
+                }
 
                 currentPatientData = {
                     firstName: formData.get('firstName'),
@@ -65,21 +78,26 @@
                     birthDate: formData.get('birthDate'),
                     gender: formData.get('gender'),
                     phone: formData.get('phone'),
-                    height: formData.get('height'),
-                    weight: formData.get('weight'),
+                    height: heightCm,
+                    weight: weight,
                     note: formData.get('note'),
                     bmi: bmi
                 };
                 
-                // Зберігаємо в LocalStorage (для передачі між сторінками, якщо треба)
+                // Зберігаємо в LocalStorage (для симуляції бази даних)
                 localStorage.setItem('lastPatient', JSON.stringify(currentPatientData));
                 
+                // Показуємо результат
+                bmiDisplay.textContent = bmi;
                 successSection.style.display = 'block';
-                alert("Дані збережено!");
+                
+                // Прокрутка до результату
+                successSection.scrollIntoView({ behavior: 'smooth' });
+                alert("Дані збережено локально!");
             });
         }
 
-        // 2. Генерація PDF
+        // 2. Генерація PDF з виправленими шрифтами
         if (generatePdfBtn) {
             generatePdfBtn.addEventListener('click', () => {
                 if (!currentPatientData) {
@@ -89,42 +107,73 @@
 
                 const doc = new jsPDF();
 
-                // === ПІДКЛЮЧЕННЯ ШРИФТУ ===
-                if (window.myUkrFont) {
-                    doc.addFileToVFS("Roboto-Regular.ttf", window.myUkrFont);
-                    doc.addFont("Roboto-Regular.ttf", "Roboto", "normal");
-                    doc.setFont("Roboto");
+                // === КРИТИЧНО ВАЖЛИВА ЧАСТИНА: ПІДКЛЮЧЕННЯ ШРИФТУ ===
+                if (window.myUkrFont && window.myUkrFont.length > 100) {
+                    try {
+                        // .trim() видаляє зайві пробіли, які ламають декодування
+                        const fontBase64 = window.myUkrFont.trim(); 
+                        
+                        doc.addFileToVFS("Roboto-Regular.ttf", fontBase64);
+                        doc.addFont("Roboto-Regular.ttf", "Roboto", "normal");
+                        doc.setFont("Roboto"); // Активуємо шрифт для всього документу
+                    } catch (err) {
+                        console.error("Помилка шрифту:", err);
+                        alert("Помилка декодування шрифту. PDF може бути некоректним.");
+                    }
                 } else {
-                    alert("Помилка! Файл font-data.js не завантажився або змінна myUkrFont порожня.");
+                    alert("Помилка: Змінна шрифту (myUkrFont) не знайдена або порожня! Перевірте font-data.js");
+                    return;
                 }
-                // ===========================
+                // ====================================================
 
+                // Заголовок
                 doc.setFontSize(18);
-                doc.text('Звіт про пацієнта', 105, 20, { align: 'center' });
+                doc.text('Медична картка пацієнта', 105, 20, { align: 'center' });
+                doc.setLineWidth(0.5);
                 doc.line(20, 25, 190, 25);
+                
+                // Основні дані
                 doc.setFontSize(12);
-
+                
                 const data = [
                     { label: "Ім’я", value: currentPatientData.firstName },
                     { label: "Прізвище", value: currentPatientData.lastName },
                     { label: "Дата народження", value: currentPatientData.birthDate },
                     { label: "Стать", value: currentPatientData.gender },
-                    { label: "Телефон", value: currentPatientData.phone || '-' },
+                    { label: "Телефон", value: currentPatientData.phone || 'Не вказано' },
                     { label: "Зріст", value: `${currentPatientData.height} см` },
                     { label: "Вага", value: `${currentPatientData.weight} кг` },
-                    { label: "ІМТ", value: currentPatientData.bmi },
+                    { label: "Індекс маси тіла", value: currentPatientData.bmi },
                     { label: "Коментар", value: currentPatientData.note || '-' },
-                    { label: "Дата звіту", value: new Date().toLocaleString('uk-UA') }
+                    { label: "Дата реєстрації", value: new Date().toLocaleString('uk-UA') }
                 ];
 
                 let currentY = 40;
+                const lineHeight = 10;
+
                 data.forEach(item => {
+                    // Жирний шрифт для назв полів (імітація, оскільки у нас один шрифт Regular)
+                    doc.setTextColor(100); // Сірий для лейблів
                     doc.text(`${item.label}:`, 20, currentY);
-                    doc.text(item.value ? String(item.value) : '-', 70, currentY);
-                    currentY += 10;
+                    
+                    doc.setTextColor(0); // Чорний для значень
+                    // Перевірка на null/undefined
+                    const val = item.value ? String(item.value) : '-';
+                    
+                    // Обробка довгих текстів (наприклад, коментар)
+                    if (val.length > 40) {
+                        const splitText = doc.splitTextToSize(val, 110);
+                        doc.text(splitText, 70, currentY);
+                        currentY += (splitText.length * 7); // Додатковий відступ для багаторядкового тексту
+                    } else {
+                        doc.text(val, 70, currentY);
+                    }
+                    
+                    currentY += lineHeight;
                 });
 
-                doc.save(`${currentPatientData.lastName}_звіт.pdf`);
+                // Збереження
+                doc.save(`${currentPatientData.lastName}_картка.pdf`);
             });
         }
     </script>
