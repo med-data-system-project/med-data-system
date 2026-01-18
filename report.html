@@ -1,159 +1,99 @@
 <!DOCTYPE html>
 <html lang="uk">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Агрегований звіт</title>
-    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="style.css">
     
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    
-    <script src="font-data.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
-
 <body>
     <main class="container">
-        <button onclick="location.href='index.html'" style="margin-bottom: 20px;">Зареєструвати пацієнта</button>
+        <button onclick="location.href='index.html'" class="nav-btn">⬅ Назад до реєстрації</button>
         
         <h1>Агрегований звіт</h1>
-        
+
         <form id="agg-form">
-            <label>Показник для аналізу*
-                <select name="metric" required>
-                    <option value="">Оберіть показник</option>
-                    <option value="weight">Вага</option>
-                    <option value="height">Зріст</option>
-                    <option value="bmi">ІМТ (Індекс маси тіла)</option>
+            <label>Оберіть показник:
+                <select name="metric">
+                    <option value="weight">Вага (кг)</option>
+                    <option value="height">Зріст (см)</option>
+                    <option value="bmi">ІМТ</option>
                 </select>
             </label>
-            <button type="submit">Розрахувати середнє</button>
+            <button type="submit" class="save-btn">Сформувати звіт</button>
         </form>
 
-        <div id="agg-success" style="display: none; margin-top: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px;">
-            <p>Обраний показник: <strong id="metric-name"></strong></p>
-            <p>Середнє значення: <strong id="result-value" style="font-size: 1.2em; color: #2ecc71;"></strong></p>
-            <button id="download-agg-pdf" style="background-color: #e74c3c;">Завантажити звіт (PDF)</button>
+        <div id="report-container" style="display: none; margin-top: 20px;">
+            <div id="pdf-report" class="pdf-template">
+                <h2 style="text-align: center; color: #e74c3c;">Аналітичний звіт</h2>
+                <p style="text-align: center; color: #7f8c8d;">Система обліку пацієнтів</p>
+                <hr>
+                
+                <div class="report-stats">
+                    <p><strong>Показник:</strong> <span id="rep-metric"></span></p>
+                    <p><strong>Кількість записів:</strong> <span id="rep-count"></span></p>
+                    
+                    <div style="background: #eafaf1; padding: 15px; border-radius: 8px; margin: 20px 0; text-align: center;">
+                        <span style="font-size: 1.2em; color: #27ae60;">Середнє значення:</span><br>
+                        <strong style="font-size: 2.5em; color: #27ae60;" id="rep-avg"></strong>
+                    </div>
+                </div>
+
+                <div class="footer">
+                    <p>Звіт згенеровано автоматично: <span id="rep-date"></span></p>
+                </div>
+            </div>
+
+            <button id="download-rep-btn" class="download-btn">📥 Завантажити звіт (PDF)</button>
         </div>
     </main>
 
     <script>
-        const { jsPDF } = window.jspdf;
-
-        // Тестові дані (оскільки LocalStorage зберігає лише одного пацієнта в index.html, 
-        // для агрегації використовуємо масив mock-даних)
+        // Тестові дані (mock data), бо localStorage має тільки 1 запис
         const mockPatients = [
             { height: 170, weight: 65, bmi: 22.5 },
-            { height: 180, weight: 78, bmi: 24.1 },
-            { height: 160, weight: 60, bmi: 23.4 },
-            { height: 175, weight: 82, bmi: 26.8 },
-            { height: 168, weight: 55, bmi: 19.5 }
+            { height: 180, weight: 88, bmi: 27.1 },
+            { height: 160, weight: 55, bmi: 21.4 },
+            { height: 175, weight: 70, bmi: 22.8 },
+            { height: 165, weight: 90, bmi: 33.0 }
         ];
 
         const form = document.getElementById('agg-form');
-        const successBlock = document.getElementById('agg-success');
-        const metricNameSpan = document.getElementById('metric-name');
-        const resultText = document.getElementById('result-value');
-        const downloadBtn = document.getElementById('download-agg-pdf');
-        
-        let currentMetricKey = "";
-        let currentMetricLabel = "";
-        let currentAvg = 0;
+        const container = document.getElementById('report-container');
+        const btn = document.getElementById('download-rep-btn');
 
-        // Словник для гарного відображення назв у PDF
-        const labelMap = { 
-            height: "Зріст (см)", 
-            weight: "Вага (кг)", 
-            bmi: "Індекс маси тіла (ІМТ)" 
-        };
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const metricKey = form.elements.metric.value;
+            const metricName = form.elements.metric.options[form.elements.metric.selectedIndex].text;
 
-        // 1. Логіка розрахунку
-        if (form) {
-            form.addEventListener('submit', (e) => {
-                e.preventDefault();
-                const metric = form.elements.metric.value;
-                if (!metric) { alert("Будь ласка, оберіть показник"); return; }
-                
-                currentMetricKey = metric;
-                currentMetricLabel = labelMap[metric];
+            // Розрахунок середнього
+            const values = mockPatients.map(p => p[metricKey]);
+            const avg = (values.reduce((a, b) => a + b, 0) / values.length).toFixed(2);
 
-                // Фільтруємо та беремо тільки числа
-                const values = mockPatients.map(p => Number(p[metric])).filter(val => !isNaN(val) && val > 0);
-                
-                if (values.length === 0) { 
-                    alert("Дані для розрахунку відсутні!"); 
-                    successBlock.style.display = 'none';
-                    return; 
-                }
-                
-                // Рахуємо середнє арифметичне
-                const sum = values.reduce((acc, val) => acc + val, 0);
-                currentAvg = (sum / values.length).toFixed(2);
-                
-                // Оновлюємо інтерфейс
-                metricNameSpan.textContent = currentMetricLabel;
-                resultText.textContent = currentAvg;
-                successBlock.style.display = 'block';
-            });
-        }
+            // Заповнення HTML
+            document.getElementById('rep-metric').innerText = metricName;
+            document.getElementById('rep-count').innerText = values.length;
+            document.getElementById('rep-avg').innerText = avg;
+            document.getElementById('rep-date').innerText = new Date().toLocaleString('uk-UA');
 
-        // 2. Генерація PDF
-        if (downloadBtn) {
-            downloadBtn.addEventListener('click', () => {
-                const doc = new jsPDF();
+            container.style.display = 'block';
+        });
 
-                // === КРИТИЧНО ВАЖЛИВА ЧАСТИНА ДЛЯ КИРИЛИЦІ ===
-                if (window.myUkrFont && window.myUkrFont.length > 100) {
-                    try {
-                        // .trim() видаляє зайві пробіли, які ламають шрифт
-                        const fontBase64 = window.myUkrFont.trim(); 
-                        
-                        doc.addFileToVFS("Roboto-Regular.ttf", fontBase64);
-                        doc.addFont("Roboto-Regular.ttf", "Roboto", "normal");
-                        doc.setFont("Roboto"); // Активуємо шрифт
-                    } catch (err) {
-                        console.error("Помилка додавання шрифту:", err);
-                        alert("Сталася помилка при обробці шрифту. Перевірте консоль.");
-                        return;
-                    }
-                } else {
-                    alert("Помилка: Шрифт не завантажено! Перевірте файл font-data.js. Звіт буде некоректним.");
-                    return; 
-                }
-                // ===============================================
-
-                // Заголовок
-                doc.setFontSize(18);
-                doc.text("Агрегований медичний звіт", 105, 20, { align: "center" });
-                
-                // Лінія розділювач
-                doc.setLineWidth(0.5);
-                doc.line(20, 25, 190, 25);
-
-                // Основний контент
-                doc.setFontSize(12);
-                doc.text(`Аналізований показник:`, 20, 40);
-                doc.setFontSize(14);
-                doc.text(currentMetricLabel, 80, 40); // Назва (Вага, Зріст...)
-
-                doc.setFontSize(12);
-                doc.text(`Кількість пацієнтів:`, 20, 50);
-                doc.text(String(mockPatients.length), 80, 50);
-
-                doc.setFontSize(12);
-                doc.text(`Середнє значення:`, 20, 60);
-                doc.setFontSize(16);
-                doc.text(String(currentAvg), 80, 60);
-
-                // Футер з датою
-                doc.setFontSize(10);
-                doc.setTextColor(100);
-                const dateStr = new Date().toLocaleString('uk-UA');
-                doc.text(`Дата формування звіту: ${dateStr}`, 20, 80);
-
-                // Збереження файлу
-                doc.save(`aggregated_report_${currentMetricKey}.pdf`);
-            });
-        }
+        // Генерація PDF
+        btn.addEventListener('click', () => {
+            const element = document.getElementById('pdf-report');
+            const opt = {
+                margin:       15,
+                filename:     `Звіт_${document.getElementById('rep-metric').innerText}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2 },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+            html2pdf().set(opt).from(element).save();
+        });
     </script>
 </body>
 </html>
