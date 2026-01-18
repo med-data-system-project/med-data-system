@@ -1,4 +1,7 @@
-// Тимчасово — тестові дані для обчислення
+// 1. Отримуємо доступ до jsPDF
+const { jsPDF } = window.jspdf;
+
+// Тимчасові дані (mock data)
 const mockPatients = [
     { height: 170, weight: 65, bmi: 22.5 },
     { height: 180, weight: 78, bmi: 24.1 },
@@ -13,6 +16,7 @@ const downloadBtn = document.getElementById('download-agg-pdf');
 let currentMetric = "";
 let currentAvg = 0;
 
+// Логіка форми
 form.addEventListener('submit', (e) => {
     e.preventDefault();
     const metric = form.elements.metric.value;
@@ -24,8 +28,12 @@ form.addEventListener('submit', (e) => {
 
     currentMetric = metric;
 
-    // Обчислення середнього значення
     const values = mockPatients.map(p => p[metric]).filter(Boolean);
+    if (values.length === 0) {
+        alert("Дані відсутні");
+        return;
+    }
+
     const sum = values.reduce((acc, val) => acc + val, 0);
     const avg = (sum / values.length).toFixed(2);
 
@@ -34,17 +42,16 @@ form.addEventListener('submit', (e) => {
     successBlock.style.display = 'block';
 });
 
-// Генерація PDF
+// Логіка генерації PDF
 downloadBtn.addEventListener('click', () => {
-    const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
 
-    // ВАЖЛИВО: Змінюємо шрифт на той, що ми підключили (Roboto-Regular)
-    // "Times" не вміє відображати українську!
+    // === Активація шрифту ===
+    // Ця назва має точно співпадати з тим, що всередині Roboto-Regular-normal.js
     doc.setFont("Roboto-Regular"); 
 
     doc.setFontSize(16);
-    doc.text("Агрегований звіт", 105, 20, { align: "center" }); // Вирівняв по центру
+    doc.text("Агрегований звіт", 105, 20, { align: "center" });
 
     const labelMap = {
         height: "Зріст (см)",
@@ -53,8 +60,6 @@ downloadBtn.addEventListener('click', () => {
     };
 
     doc.setFontSize(12);
-    
-    // Перевірка, щоб уникнути undefined, якщо метрика не обрана
     const metricName = labelMap[currentMetric] || currentMetric;
 
     doc.text(`Показник: ${metricName}`, 20, 40);
