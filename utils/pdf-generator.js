@@ -1,14 +1,12 @@
-// Якщо ви використовуєте звичайний <script src="script.js">, залиште цей рядок:
+// Отримуємо доступ до бібліотеки jsPDF
 const { jsPDF } = window.jspdf;
 
-// Якщо ви використовуєте модулі (import), розкоментуйте наступний рядок:
-// import { jsPDF } from "jspdf"; 
-
-export function generatePatientPDF(patient) {
+// --- ЧАСТИНА 1: Функція створення PDF ---
+function generatePatientPDF(patient) {
     const doc = new jsPDF();
 
-    // === КРОК 1: Активуємо український шрифт ===
-    // Це працює, бо ви додали <script src="Roboto-Regular-normal.js"> в HTML
+    // === Активація українського шрифту ===
+    // (Працює завдяки підключеному файлу Roboto-Regular-normal.js)
     doc.setFont("Roboto-Regular"); 
 
     // === ДИЗАЙН ЗВІТУ ===
@@ -29,7 +27,7 @@ export function generatePatientPDF(patient) {
     let currentY = 40;     
     const lineHeight = 10; 
 
-    // Масив даних (Переклав назви полів українською)
+    // Масив даних
     const data = [
         { label: "Ім’я",             value: patient.firstName },
         { label: "Прізвище",         value: patient.lastName },
@@ -44,7 +42,7 @@ export function generatePatientPDF(patient) {
     ];
 
     data.forEach(item => {
-        // Малюємо назву поля
+        // Малюємо назву
         doc.text(`${item.label}:`, startX, currentY);
         
         // Малюємо значення
@@ -56,9 +54,62 @@ export function generatePatientPDF(patient) {
 
     // Футер
     doc.setFontSize(10);
-    doc.setTextColor(150); // Сірий колір
+    doc.setTextColor(150); 
     doc.text("Згенеровано автоматично системою обліку", 105, 280, { align: 'center' });
 
-    // Зберігаємо файл (Назва файлу теж може бути кирилицею)
+    // Зберігаємо файл
     doc.save(`${patient.lastName}_${patient.firstName}_звіт.pdf`);
+}
+
+// --- ЧАСТИНА 2: Логіка роботи форми (index.html) ---
+
+const patientForm = document.getElementById('patient-form');
+const successSection = document.getElementById('success-section');
+const generatePdfBtn = document.getElementById('generate-pdf');
+let currentPatientData = null;
+
+// 1. Коли натискаємо "Зберегти"
+if (patientForm) {
+    patientForm.addEventListener('submit', (e) => {
+        e.preventDefault(); // Зупиняємо перезавантаження сторінки
+        
+        const formData = new FormData(patientForm);
+        
+        // Розрахунок ІМТ (BMI)
+        const weight = parseFloat(formData.get('weight'));
+        const height = parseFloat(formData.get('height')) / 100; // переводимо см у метри
+        let bmi = '-';
+        
+        if (weight > 0 && height > 0) {
+            bmi = (weight / (height * height)).toFixed(1);
+        }
+
+        // Зберігаємо дані в змінну
+        currentPatientData = {
+            firstName: formData.get('firstName'),
+            lastName: formData.get('lastName'),
+            birthDate: formData.get('birthDate'),
+            gender: formData.get('gender'),
+            phone: formData.get('phone'),
+            height: formData.get('height'),
+            weight: formData.get('weight'),
+            note: formData.get('note'),
+            bmi: bmi
+        };
+
+        // Показуємо кнопку для скачування PDF
+        successSection.style.display = 'block';
+        alert("Дані пацієнта збережено! Тепер ви можете завантажити PDF.");
+    });
+}
+
+// 2. Коли натискаємо "Отримати звіт (PDF)"
+if (generatePdfBtn) {
+    generatePdfBtn.addEventListener('click', () => {
+        if (currentPatientData) {
+            generatePatientPDF(currentPatientData);
+        } else {
+            alert("Спочатку заповніть форму та натисніть 'Зберегти'");
+        }
+    });
 }
