@@ -1,181 +1,137 @@
 <!DOCTYPE html>
 <html lang="uk">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Реєстрація пацієнта</title>
-    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="style.css">
     
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    
-    <script src="font-data.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
-
 <body>
     <main class="container">
-        <button onclick="location.href='report.html'" style="margin-bottom: 20px;">Отримати агрегований звіт</button>
+        <button onclick="location.href='report.html'" class="nav-btn">📊 До звітів</button>
         
         <h1>Реєстрація пацієнта</h1>
         
         <form id="patient-form">
-            <label>Ім’я* <input type="text" name="firstName" required placeholder="Введіть ім'я" /></label>
-            <label>Прізвище* <input type="text" name="lastName" required placeholder="Введіть прізвище" /></label>
-            <label>Дата народження* <input type="date" name="birthDate" required /></label>
-            
-            <label>Стать*
-                <select name="gender" required>
-                    <option value="">Оберіть стать</option>
-                    <option value="Чоловіча">Чоловіча</option>
-                    <option value="Жіноча">Жіноча</option>
-                    <option value="Інше">Інше</option>
-                </select>
-            </label>
-            
-            <label>Номер телефону <input type="tel" name="phone" placeholder="+380..." /></label>
-            <label>Зріст (см)* <input type="number" name="height" required min="30" max="300" /></label>
-            <label>Вага (кг)* <input type="number" name="weight" required min="2" max="500" /></label>
-            <label>Коментар <textarea name="note" placeholder="Додаткова інформація..."></textarea></label>
+            <div class="form-group">
+                <label>Ім’я* <input type="text" name="firstName" required /></label>
+                <label>Прізвище* <input type="text" name="lastName" required /></label>
+            </div>
+            <div class="form-group">
+                <label>Дата народження* <input type="date" name="birthDate" required /></label>
+                <label>Стать*
+                    <select name="gender" required>
+                        <option value="Чоловіча">Чоловіча</option>
+                        <option value="Жіноча">Жіноча</option>
+                    </select>
+                </label>
+            </div>
+            <div class="form-group">
+                <label>Зріст (см)* <input type="number" name="height" required /></label>
+                <label>Вага (кг)* <input type="number" name="weight" required /></label>
+            </div>
+            <label>Телефон <input type="tel" name="phone" /></label>
+            <label>Коментар <textarea name="note"></textarea></label>
 
-            <button type="submit">Зберегти дані</button>
+            <button type="submit" class="save-btn">Зберегти та створити картку</button>
         </form>
 
-        <div id="success-section" style="display: none; margin-top: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px; background-color: #f9f9f9;">
-            <p style="color: #27ae60; font-weight: bold;">Пацієнта збережено успішно!</p>
-            <p>Розрахований ІМТ: <strong id="display-bmi"></strong></p>
-            <button id="generate-pdf" style="background-color: #e74c3c;">Завантажити картку (PDF)</button>
+        <div id="card-preview-section" style="display: none;">
+            <hr>
+            <h3>Попередній перегляд картки:</h3>
+            
+            <div id="medical-card" class="pdf-template">
+                <h2 style="text-align: center; color: #2c3e50;">Медична картка пацієнта</h2>
+                <hr style="border: 1px solid #2c3e50;">
+                
+                <div class="card-grid">
+                    <p><strong>ПІБ:</strong> <span id="card-name"></span></p>
+                    <p><strong>Дата народження:</strong> <span id="card-birth"></span></p>
+                    <p><strong>Стать:</strong> <span id="card-gender"></span></p>
+                    <p><strong>Телефон:</strong> <span id="card-phone"></span></p>
+                    <p><strong>Фізичні дані:</strong> <span id="card-physique"></span></p>
+                    <p><strong>ІМТ:</strong> <span id="card-bmi"></span></p>
+                </div>
+                
+                <div style="margin-top: 20px; padding: 10px; background: #f8f9fa; border-left: 4px solid #3498db;">
+                    <strong>Коментар лікаря:</strong><br>
+                    <span id="card-note"></span>
+                </div>
+                
+                <div class="footer">
+                    <p>Дата створення: <span id="card-date"></span></p>
+                </div>
+            </div>
+
+            <button id="download-btn" class="download-btn">📥 Завантажити PDF</button>
         </div>
     </main>
 
     <script>
-        const { jsPDF } = window.jspdf;
-        
-        const patientForm = document.getElementById('patient-form');
-        const successSection = document.getElementById('success-section');
-        const bmiDisplay = document.getElementById('display-bmi');
-        const generatePdfBtn = document.getElementById('generate-pdf');
-        
-        let currentPatientData = null;
+        const form = document.getElementById('patient-form');
+        const previewSection = document.getElementById('card-preview-section');
+        const downloadBtn = document.getElementById('download-btn');
 
-        // 1. Обробка форми та розрахунки
-        if (patientForm) {
-            patientForm.addEventListener('submit', (e) => {
-                e.preventDefault();
-                const formData = new FormData(patientForm);
-                
-                const weight = parseFloat(formData.get('weight'));
-                const heightCm = parseFloat(formData.get('height'));
-                const heightM = heightCm / 100;
+        let currentPatient = null;
 
-                // Розрахунок Індексу маси тіла (ІМТ)
-                let bmi = '-';
-                if (weight > 0 && heightM > 0) {
-                    bmi = (weight / (heightM * heightM)).toFixed(1);
-                }
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const formData = new FormData(form);
+            
+            // Розрахунки
+            const weight = Number(formData.get('weight'));
+            const height = Number(formData.get('height'));
+            const bmi = (weight / ((height/100) ** 2)).toFixed(1);
 
-                currentPatientData = {
-                    firstName: formData.get('firstName'),
-                    lastName: formData.get('lastName'),
-                    birthDate: formData.get('birthDate'),
-                    gender: formData.get('gender'),
-                    phone: formData.get('phone'),
-                    height: heightCm,
-                    weight: weight,
-                    note: formData.get('note'),
-                    bmi: bmi
-                };
-                
-                // Зберігаємо в LocalStorage (для симуляції бази даних)
-                localStorage.setItem('lastPatient', JSON.stringify(currentPatientData));
-                
-                // Показуємо результат
-                bmiDisplay.textContent = bmi;
-                successSection.style.display = 'block';
-                
-                // Прокрутка до результату
-                successSection.scrollIntoView({ behavior: 'smooth' });
-                alert("Дані збережено локально!");
-            });
-        }
+            currentPatient = {
+                name: `${formData.get('lastName')} ${formData.get('firstName')}`,
+                birth: formData.get('birthDate'),
+                gender: formData.get('gender'),
+                phone: formData.get('phone') || '-',
+                physique: `${height} см / ${weight} кг`,
+                bmi: bmi,
+                note: formData.get('note') || 'Немає приміток'
+            };
 
-        // 2. Генерація PDF з виправленими шрифтами
-        if (generatePdfBtn) {
-            generatePdfBtn.addEventListener('click', () => {
-                if (!currentPatientData) {
-                    alert("Спочатку збережіть форму!");
-                    return;
-                }
+            // Зберігаємо для звітів
+            localStorage.setItem('lastPatient', JSON.stringify({
+                ...currentPatient, 
+                weight: weight, 
+                height: height 
+            }));
 
-                const doc = new jsPDF();
+            // Заповнюємо шаблон HTML
+            document.getElementById('card-name').innerText = currentPatient.name;
+            document.getElementById('card-birth').innerText = currentPatient.birth;
+            document.getElementById('card-gender').innerText = currentPatient.gender;
+            document.getElementById('card-phone').innerText = currentPatient.phone;
+            document.getElementById('card-physique').innerText = currentPatient.physique;
+            document.getElementById('card-bmi').innerText = currentPatient.bmi;
+            document.getElementById('card-note').innerText = currentPatient.note;
+            document.getElementById('card-date').innerText = new Date().toLocaleString('uk-UA');
 
-                // === КРИТИЧНО ВАЖЛИВА ЧАСТИНА: ПІДКЛЮЧЕННЯ ШРИФТУ ===
-                if (window.myUkrFont && window.myUkrFont.length > 100) {
-                    try {
-                        // .trim() видаляє зайві пробіли, які ламають декодування
-                        const fontBase64 = window.myUkrFont.trim(); 
-                        
-                        doc.addFileToVFS("Roboto-Regular.ttf", fontBase64);
-                        doc.addFont("Roboto-Regular.ttf", "Roboto", "normal");
-                        doc.setFont("Roboto"); // Активуємо шрифт для всього документу
-                    } catch (err) {
-                        console.error("Помилка шрифту:", err);
-                        alert("Помилка декодування шрифту. PDF може бути некоректним.");
-                    }
-                } else {
-                    alert("Помилка: Змінна шрифту (myUkrFont) не знайдена або порожня! Перевірте font-data.js");
-                    return;
-                }
-                // ====================================================
+            // Показуємо блок
+            previewSection.style.display = 'block';
+            // Прокручуємо до нього
+            previewSection.scrollIntoView({ behavior: 'smooth' });
+        });
 
-                // Заголовок
-                doc.setFontSize(18);
-                doc.text('Медична картка пацієнта', 105, 20, { align: 'center' });
-                doc.setLineWidth(0.5);
-                doc.line(20, 25, 190, 25);
-                
-                // Основні дані
-                doc.setFontSize(12);
-                
-                const data = [
-                    { label: "Ім’я", value: currentPatientData.firstName },
-                    { label: "Прізвище", value: currentPatientData.lastName },
-                    { label: "Дата народження", value: currentPatientData.birthDate },
-                    { label: "Стать", value: currentPatientData.gender },
-                    { label: "Телефон", value: currentPatientData.phone || 'Не вказано' },
-                    { label: "Зріст", value: `${currentPatientData.height} см` },
-                    { label: "Вага", value: `${currentPatientData.weight} кг` },
-                    { label: "Індекс маси тіла", value: currentPatientData.bmi },
-                    { label: "Коментар", value: currentPatientData.note || '-' },
-                    { label: "Дата реєстрації", value: new Date().toLocaleString('uk-UA') }
-                ];
+        // Генерація PDF
+        downloadBtn.addEventListener('click', () => {
+            const element = document.getElementById('medical-card');
+            
+            const opt = {
+                margin:       10,
+                filename:     `Картка_${currentPatient.name}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2 }, // Висока якість
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
 
-                let currentY = 40;
-                const lineHeight = 10;
-
-                data.forEach(item => {
-                    // Жирний шрифт для назв полів (імітація, оскільки у нас один шрифт Regular)
-                    doc.setTextColor(100); // Сірий для лейблів
-                    doc.text(`${item.label}:`, 20, currentY);
-                    
-                    doc.setTextColor(0); // Чорний для значень
-                    // Перевірка на null/undefined
-                    const val = item.value ? String(item.value) : '-';
-                    
-                    // Обробка довгих текстів (наприклад, коментар)
-                    if (val.length > 40) {
-                        const splitText = doc.splitTextToSize(val, 110);
-                        doc.text(splitText, 70, currentY);
-                        currentY += (splitText.length * 7); // Додатковий відступ для багаторядкового тексту
-                    } else {
-                        doc.text(val, 70, currentY);
-                    }
-                    
-                    currentY += lineHeight;
-                });
-
-                // Збереження
-                doc.save(`${currentPatientData.lastName}_картка.pdf`);
-            });
-        }
+            html2pdf().set(opt).from(element).save();
+        });
     </script>
 </body>
 </html>
