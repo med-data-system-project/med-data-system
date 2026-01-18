@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="uk">
-
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -43,9 +42,91 @@
         </div>
     </main>
 
-    <script src="pdf-generator.js"></script>
+    <script>
+        const { jsPDF } = window.jspdf;
+        
+        const patientForm = document.getElementById('patient-form');
+        const successSection = document.getElementById('success-section');
+        const generatePdfBtn = document.getElementById('generate-pdf');
+        let currentPatientData = null;
 
-    <script src="script.js"></script>
+        // 1. Обробка форми
+        if (patientForm) {
+            patientForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const formData = new FormData(patientForm);
+                const weight = parseFloat(formData.get('weight'));
+                const height = parseFloat(formData.get('height')) / 100;
+                let bmi = (weight > 0 && height > 0) ? (weight / (height * height)).toFixed(1) : '-';
+
+                currentPatientData = {
+                    firstName: formData.get('firstName'),
+                    lastName: formData.get('lastName'),
+                    birthDate: formData.get('birthDate'),
+                    gender: formData.get('gender'),
+                    phone: formData.get('phone'),
+                    height: formData.get('height'),
+                    weight: formData.get('weight'),
+                    note: formData.get('note'),
+                    bmi: bmi
+                };
+                
+                // Зберігаємо в LocalStorage (для передачі між сторінками, якщо треба)
+                localStorage.setItem('lastPatient', JSON.stringify(currentPatientData));
+                
+                successSection.style.display = 'block';
+                alert("Дані збережено!");
+            });
+        }
+
+        // 2. Генерація PDF
+        if (generatePdfBtn) {
+            generatePdfBtn.addEventListener('click', () => {
+                if (!currentPatientData) {
+                    alert("Спочатку збережіть форму!");
+                    return;
+                }
+
+                const doc = new jsPDF();
+
+                // === ПІДКЛЮЧЕННЯ ШРИФТУ ===
+                if (window.myUkrFont) {
+                    doc.addFileToVFS("Roboto-Regular.ttf", window.myUkrFont);
+                    doc.addFont("Roboto-Regular.ttf", "Roboto", "normal");
+                    doc.setFont("Roboto");
+                } else {
+                    alert("Помилка! Файл font-data.js не завантажився або змінна myUkrFont порожня.");
+                }
+                // ===========================
+
+                doc.setFontSize(18);
+                doc.text('Звіт про пацієнта', 105, 20, { align: 'center' });
+                doc.line(20, 25, 190, 25);
+                doc.setFontSize(12);
+
+                const data = [
+                    { label: "Ім’я", value: currentPatientData.firstName },
+                    { label: "Прізвище", value: currentPatientData.lastName },
+                    { label: "Дата народження", value: currentPatientData.birthDate },
+                    { label: "Стать", value: currentPatientData.gender },
+                    { label: "Телефон", value: currentPatientData.phone || '-' },
+                    { label: "Зріст", value: `${currentPatientData.height} см` },
+                    { label: "Вага", value: `${currentPatientData.weight} кг` },
+                    { label: "ІМТ", value: currentPatientData.bmi },
+                    { label: "Коментар", value: currentPatientData.note || '-' },
+                    { label: "Дата звіту", value: new Date().toLocaleString('uk-UA') }
+                ];
+
+                let currentY = 40;
+                data.forEach(item => {
+                    doc.text(`${item.label}:`, 20, currentY);
+                    doc.text(item.value ? String(item.value) : '-', 70, currentY);
+                    currentY += 10;
+                });
+
+                doc.save(`${currentPatientData.lastName}_звіт.pdf`);
+            });
+        }
+    </script>
 </body>
-
 </html>
