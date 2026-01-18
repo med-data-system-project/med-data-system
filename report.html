@@ -13,87 +13,145 @@
 
 <body>
     <main class="container">
-        <button onclick="location.href='index.html'">Зареєструвати пацієнта</button>
+        <button onclick="location.href='index.html'" style="margin-bottom: 20px;">Зареєструвати пацієнта</button>
+        
         <h1>Агрегований звіт</h1>
         
         <form id="agg-form">
             <label>Показник для аналізу*
                 <select name="metric" required>
-                    <option value="">Оберіть</option>
+                    <option value="">Оберіть показник</option>
                     <option value="weight">Вага</option>
                     <option value="height">Зріст</option>
-                    <option value="bmi">ІМТ</option>
+                    <option value="bmi">ІМТ (Індекс маси тіла)</option>
                 </select>
             </label>
-            <button type="submit">Отримати звіт</button>
+            <button type="submit">Розрахувати середнє</button>
         </form>
 
-        <div id="agg-success" style="display: none;">
-            <p>Середнє значення: <strong id="result-value"></strong></p>
-            <button id="download-agg-pdf">Завантажити звіт (PDF)</button>
+        <div id="agg-success" style="display: none; margin-top: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px;">
+            <p>Обраний показник: <strong id="metric-name"></strong></p>
+            <p>Середнє значення: <strong id="result-value" style="font-size: 1.2em; color: #2ecc71;"></strong></p>
+            <button id="download-agg-pdf" style="background-color: #e74c3c;">Завантажити звіт (PDF)</button>
         </div>
     </main>
 
     <script>
         const { jsPDF } = window.jspdf;
 
+        // Тестові дані (оскільки LocalStorage зберігає лише одного пацієнта в index.html, 
+        // для агрегації використовуємо масив mock-даних)
         const mockPatients = [
             { height: 170, weight: 65, bmi: 22.5 },
             { height: 180, weight: 78, bmi: 24.1 },
-            { height: 160, weight: 60, bmi: 23.4 }
+            { height: 160, weight: 60, bmi: 23.4 },
+            { height: 175, weight: 82, bmi: 26.8 },
+            { height: 168, weight: 55, bmi: 19.5 }
         ];
 
         const form = document.getElementById('agg-form');
         const successBlock = document.getElementById('agg-success');
+        const metricNameSpan = document.getElementById('metric-name');
         const resultText = document.getElementById('result-value');
         const downloadBtn = document.getElementById('download-agg-pdf');
-        let currentMetric = "";
+        
+        let currentMetricKey = "";
+        let currentMetricLabel = "";
         let currentAvg = 0;
 
+        // Словник для гарного відображення назв у PDF
+        const labelMap = { 
+            height: "Зріст (см)", 
+            weight: "Вага (кг)", 
+            bmi: "Індекс маси тіла (ІМТ)" 
+        };
+
+        // 1. Логіка розрахунку
         if (form) {
             form.addEventListener('submit', (e) => {
                 e.preventDefault();
                 const metric = form.elements.metric.value;
-                if (!metric) { alert("Оберіть показник"); return; }
+                if (!metric) { alert("Будь ласка, оберіть показник"); return; }
                 
-                currentMetric = metric;
-                const values = mockPatients.map(p => p[metric]).filter(Boolean);
+                currentMetricKey = metric;
+                currentMetricLabel = labelMap[metric];
+
+                // Фільтруємо та беремо тільки числа
+                const values = mockPatients.map(p => Number(p[metric])).filter(val => !isNaN(val) && val > 0);
                 
-                if (values.length === 0) { alert("Дані відсутні"); return; }
+                if (values.length === 0) { 
+                    alert("Дані для розрахунку відсутні!"); 
+                    successBlock.style.display = 'none';
+                    return; 
+                }
                 
+                // Рахуємо середнє арифметичне
                 const sum = values.reduce((acc, val) => acc + val, 0);
                 currentAvg = (sum / values.length).toFixed(2);
                 
+                // Оновлюємо інтерфейс
+                metricNameSpan.textContent = currentMetricLabel;
                 resultText.textContent = currentAvg;
                 successBlock.style.display = 'block';
             });
         }
 
+        // 2. Генерація PDF
         if (downloadBtn) {
             downloadBtn.addEventListener('click', () => {
                 const doc = new jsPDF();
 
-                // === ПІДКЛЮЧЕННЯ ШРИФТУ ===
-                if (window.myUkrFont) {
-                    doc.addFileToVFS("Roboto-Regular.ttf", window.myUkrFont);
-                    doc.addFont("Roboto-Regular.ttf", "Roboto", "normal");
-                    doc.setFont("Roboto");
+                // === КРИТИЧНО ВАЖЛИВА ЧАСТИНА ДЛЯ КИРИЛИЦІ ===
+                if (window.myUkrFont && window.myUkrFont.length > 100) {
+                    try {
+                        // .trim() видаляє зайві пробіли, які ламають шрифт
+                        const fontBase64 = window.myUkrFont.trim(); 
+                        
+                        doc.addFileToVFS("Roboto-Regular.ttf", fontBase64);
+                        doc.addFont("Roboto-Regular.ttf", "Roboto", "normal");
+                        doc.setFont("Roboto"); // Активуємо шрифт
+                    } catch (err) {
+                        console.error("Помилка додавання шрифту:", err);
+                        alert("Сталася помилка при обробці шрифту. Перевірте консоль.");
+                        return;
+                    }
                 } else {
-                    alert("Помилка: Шрифт не знайдено! Перевірте файл font-data.js");
+                    alert("Помилка: Шрифт не завантажено! Перевірте файл font-data.js. Звіт буде некоректним.");
+                    return; 
                 }
-                // ===========================
+                // ===============================================
 
-                doc.setFontSize(16);
-                doc.text("Агрегований звіт", 105, 20, { align: "center" });
-
-                const labelMap = { height: "Зріст (см)", weight: "Вага (кг)", bmi: "Індекс маси тіла (ІМТ)" };
-                doc.setFontSize(12);
+                // Заголовок
+                doc.setFontSize(18);
+                doc.text("Агрегований медичний звіт", 105, 20, { align: "center" });
                 
-                doc.text(`Показник: ${labelMap[currentMetric] || currentMetric}`, 20, 40);
-                doc.text(`Середнє значення: ${currentAvg}`, 20, 50);
-                doc.text(`Дата звіту: ${new Date().toLocaleString('uk-UA')}`, 20, 65);
+                // Лінія розділювач
+                doc.setLineWidth(0.5);
+                doc.line(20, 25, 190, 25);
 
-                doc.save(`aggregated_report_${currentMetric}.pdf`);
+                // Основний контент
+                doc.setFontSize(12);
+                doc.text(`Аналізований показник:`, 20, 40);
+                doc.setFontSize(14);
+                doc.text(currentMetricLabel, 80, 40); // Назва (Вага, Зріст...)
+
+                doc.setFontSize(12);
+                doc.text(`Кількість пацієнтів:`, 20, 50);
+                doc.text(String(mockPatients.length), 80, 50);
+
+                doc.setFontSize(12);
+                doc.text(`Середнє значення:`, 20, 60);
+                doc.setFontSize(16);
+                doc.text(String(currentAvg), 80, 60);
+
+                // Футер з датою
+                doc.setFontSize(10);
+                doc.setTextColor(100);
+                const dateStr = new Date().toLocaleString('uk-UA');
+                doc.text(`Дата формування звіту: ${dateStr}`, 20, 80);
+
+                // Збереження файлу
+                doc.save(`aggregated_report_${currentMetricKey}.pdf`);
             });
         }
     </script>
