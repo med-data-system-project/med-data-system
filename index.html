@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Ваша назва</title>
+    <title>Реєстрація пацієнта</title>
     <link rel="stylesheet" href="style.css" />
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -16,6 +16,7 @@
     <main class="container">
         <button onclick="location.href='report.html'">Отримати агрегований звіт</button>
         <h1>Реєстрація пацієнта</h1>
+        
         <form id="patient-form">
             <label>Ім’я* <input type="text" name="firstName" required /></label>
             <label>Прізвище* <input type="text" name="lastName" required /></label>
@@ -41,6 +42,8 @@
             <button id="generate-pdf">Отримати звіт (PDF)</button>
         </div>
     </main>
+
+    <script src="pdf-generator.js"></script>
 
     <script src="script.js"></script>
 </body>
