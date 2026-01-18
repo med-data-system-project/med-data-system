@@ -39,9 +39,12 @@ downloadBtn.addEventListener('click', () => {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
 
-    doc.setFont("Times");
+    // ВАЖЛИВО: Змінюємо шрифт на той, що ми підключили (Roboto-Regular)
+    // "Times" не вміє відображати українську!
+    doc.setFont("Roboto-Regular"); 
+
     doc.setFontSize(16);
-    doc.text("Агрегований звіт", 20, 20);
+    doc.text("Агрегований звіт", 105, 20, { align: "center" }); // Вирівняв по центру
 
     const labelMap = {
         height: "Зріст (см)",
@@ -50,9 +53,13 @@ downloadBtn.addEventListener('click', () => {
     };
 
     doc.setFontSize(12);
-    doc.text(`Показник: ${labelMap[currentMetric]}`, 20, 40);
+    
+    // Перевірка, щоб уникнути undefined, якщо метрика не обрана
+    const metricName = labelMap[currentMetric] || currentMetric;
+
+    doc.text(`Показник: ${metricName}`, 20, 40);
     doc.text(`Середнє значення: ${currentAvg}`, 20, 50);
-    doc.text(`Дата звіту: ${new Date().toLocaleString()}`, 20, 65);
+    doc.text(`Дата звіту: ${new Date().toLocaleString('uk-UA')}`, 20, 65);
 
     doc.save(`aggregated_report_${currentMetric}.pdf`);
 });
